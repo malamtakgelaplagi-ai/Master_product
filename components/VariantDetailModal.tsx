@@ -1,0 +1,1 @@
+// This component is no longer used. BOM and detailed configurations are handled in the Production flow.
