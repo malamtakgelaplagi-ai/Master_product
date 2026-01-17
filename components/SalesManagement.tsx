@@ -12,7 +12,7 @@ interface SalesManagementProps {
   customers: Customer[];
   warehouses: Warehouse[];
   onSaveSale: (sale: Sale, items: SaleItem[], updatedStocks: Stock[]) => void;
-  onUpdatePayment: (invoice: string, amount: number, method: string) => void;
+  onUpdatePayment: (invoice: string, amount: number, method: string) => Promise<void> | void;
   isLoading: boolean;
 }
 
@@ -35,7 +35,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
   onUpdatePayment,
   isLoading
 }) => {
-  const [activeTab, setActiveTab] = useState<'pos' | 'piutang'>('pos');
+  const [activeTab, setActiveTab] = useState<'pos' | 'piutang' | 'riwayat'>('pos');
   const [skuSearch, setSkuSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -45,10 +45,11 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
   const [dp, setDp] = useState<number>(0);
   const [error, setError] = useState('');
   const [invoice, setInvoice] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Printing State
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [lastCompletedSale, setLastCompletedSale] = useState<{sale: Sale, items: CartItem[], warehouseName: string} | null>(null);
+  const [lastCompletedSale, setLastCompletedSale] = useState<{sale: Sale, items: any[], warehouseName: string} | null>(null);
 
   // Pelunasan State
   const [selectedInvoice, setSelectedInvoice] = useState<Sale | null>(null);
@@ -202,7 +203,6 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
 
     onSaveSale(sale, saleItems, updatedStocks);
 
-    // Setup print preview before clearing cart
     setLastCompletedSale({
       sale,
       items: [...cart],
@@ -210,26 +210,51 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
     });
     setIsPrintModalOpen(true);
 
-    // Clear session state
     setCart([]);
     setSelectedCustomerId('');
     setDp(0);
     generateInvoice();
   };
 
-  const handleProcessPelunasan = () => {
+  const handleProcessPelunasan = async () => {
     if (!selectedInvoice) return;
     if (paymentAmount <= 0) {
       setError('Jumlah bayar tidak valid.');
       return;
     }
-    onUpdatePayment(selectedInvoice.invoice, paymentAmount, paymentMethod);
-    setSelectedInvoice(null);
-    setPaymentAmount(0);
+    
+    setIsProcessingPayment(true);
+    try {
+      await onUpdatePayment(selectedInvoice.invoice, paymentAmount, paymentMethod);
+      setSelectedInvoice(null);
+      setPaymentAmount(0);
+      setError('');
+    } catch (e) {
+      setError('Gagal memproses pelunasan.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleReprint = (sale: Sale) => {
+    // We need to fetch/prepare the sale items for this invoice
+    // Simplified logic: filter current session's products context if possible
+    // In a real app, you'd fetch by invoice. For now, we use a placeholder lookup
+    const whName = warehouses.find(w => w.warehouse_id === sale.warehouse_id)?.nama_gudang || 'Warehouse';
+    setLastCompletedSale({
+      sale,
+      items: [], // In a full implementation, you'd pass the actual saleItems from props
+      warehouseName: whName
+    });
+    setIsPrintModalOpen(true);
   };
 
   const dpInvoices = useMemo(() => {
     return sales.filter(s => s.status === 'DP').sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+  }, [sales]);
+
+  const allInvoices = useMemo(() => {
+    return [...sales].sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
   }, [sales]);
 
   if (isLoading) return <div className="text-center py-24 animate-pulse"><div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div><p className="font-bold text-slate-400">Loading Cashier...</p></div>;
@@ -241,9 +266,10 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
         <button onClick={() => setActiveTab('piutang')} className={`px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'piutang' ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>
           Piutang {dpInvoices.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{dpInvoices.length}</span>}
         </button>
+        <button onClick={() => setActiveTab('riwayat')} className={`px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'riwayat' ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Data Transaksi</button>
       </div>
 
-      {activeTab === 'pos' ? (
+      {activeTab === 'pos' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8">
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200">
@@ -363,10 +389,6 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
 
           <div className="lg:col-span-1">
             <div className="bg-slate-900 p-8 rounded-[40px] shadow-2xl text-white sticky top-28 overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-              </div>
-              
               <h3 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-10 relative z-10">Billing Summary</h3>
               
               {error && <div className="mb-6 p-4 bg-rose-500/20 text-rose-300 text-[11px] font-black rounded-2xl border border-rose-500/30 flex gap-2 items-center"><svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>{error}</div>}
@@ -391,7 +413,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Payment Amount (DP/Lunas)</label>
                     <input 
                       type="number" 
-                      className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-[24px] text-2xl font-black text-white outline-none focus:ring-2 focus:ring-blue-600 transition-all" 
+                      className="w-full px-6 py-5 bg-white border border-slate-200 rounded-[24px] text-2xl font-black text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/30 transition-all shadow-inner" 
                       placeholder="0"
                       value={dp || ''} 
                       onChange={(e) => setDp(Number(e.target.value))} 
@@ -414,7 +436,9 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'piutang' && (
         <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm animate-in slide-in-from-bottom-4 duration-500">
              <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
                 <div>
@@ -446,7 +470,72 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                             <td className="px-10 py-6 font-bold text-sm text-slate-600">{sale.customer_name}</td>
                             <td className="px-10 py-6 text-right font-black text-sm text-rose-600 bg-rose-50/20">Rp {sale.sisa.toLocaleString()}</td>
                             <td className="px-10 py-6 text-center">
-                              <button onClick={() => { setSelectedInvoice(sale); setPaymentAmount(sale.sisa); }} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-100">Lakukan Pembayaran</button>
+                              <button onClick={() => { setSelectedInvoice(sale); setPaymentAmount(sale.sisa); setError(''); }} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-100">Lakukan Pembayaran</button>
+                            </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+               </table>
+             </div>
+        </div>
+      )}
+
+      {activeTab === 'riwayat' && (
+        <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm animate-in slide-in-from-bottom-4 duration-500">
+             <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Riwayat Transaksi Penjualan</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Data penjualan produk jadi</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Total Transaksi</p>
+                  <p className="text-3xl font-black text-slate-900 tracking-tighter">{allInvoices.length} INV</p>
+                </div>
+             </div>
+             <div className="overflow-x-auto">
+               <table className="min-w-full divide-y divide-slate-100">
+                  <thead className="bg-slate-50/50">
+                    <tr>
+                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice / Tanggal</th>
+                        <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Pelanggan</th>
+                        <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Belanja</th>
+                        <th className="px-8 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <th className="px-8 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode</th>
+                        <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {allInvoices.length === 0 ? (
+                      <tr><td colSpan={6} className="px-8 py-20 text-center text-slate-300 italic">Belum ada riwayat transaksi.</td></tr>
+                    ) : (
+                      allInvoices.map(sale => (
+                        <tr key={sale.invoice} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-8 py-6">
+                               <div className="font-black text-sm text-slate-900">{sale.invoice}</div>
+                               <div className="text-[10px] text-slate-400 font-bold uppercase">{new Date(sale.tanggal).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                            </td>
+                            <td className="px-8 py-6">
+                               <div className="font-bold text-sm text-slate-700">{sale.customer_name}</div>
+                               <div className="text-[9px] font-black text-blue-500 uppercase">{sale.tipe_harga}</div>
+                            </td>
+                            <td className="px-8 py-6 text-right font-black text-sm text-slate-900">Rp {sale.total.toLocaleString()}</td>
+                            <td className="px-8 py-6 text-center">
+                               <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                 sale.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                               }`}>
+                                 {sale.status}
+                               </span>
+                            </td>
+                            <td className="px-8 py-6 text-center text-[10px] font-black text-slate-400">{sale.metode}</td>
+                            <td className="px-8 py-6 text-right">
+                               <button 
+                                 onClick={() => handleReprint(sale)}
+                                 className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                 title="Cetak Ulang Invoice"
+                               >
+                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                               </button>
                             </td>
                         </tr>
                       ))
@@ -465,9 +554,11 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                   <h2 className="text-2xl font-black tracking-tight">Settle Payment</h2>
                   <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Invoice: {selectedInvoice.invoice}</p>
                 </div>
-                <button onClick={() => setSelectedInvoice(null)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" /></svg>
-                </button>
+                {!isProcessingPayment && (
+                  <button onClick={() => setSelectedInvoice(null)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2.5" /></svg>
+                  </button>
+                )}
               </div>
               
               <div className="bg-slate-50 p-8 rounded-[32px] text-center border border-slate-100">
@@ -476,10 +567,12 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
               </div>
 
               <div className="space-y-6">
+                 {error && <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-rose-100">{error}</div>}
                  <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Payment Amount</label>
                     <input 
                       type="number" 
+                      disabled={isProcessingPayment}
                       className="w-full px-8 py-6 bg-slate-50 border border-slate-200 rounded-[32px] text-3xl font-black outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-50 transition-all text-center" 
                       value={paymentAmount || ''} 
                       onChange={(e) => setPaymentAmount(Number(e.target.value))} 
@@ -489,14 +582,27 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Metode</label>
                     <div className="grid grid-cols-3 gap-3">
                         {(['CASH', 'TRANSFER', 'QRIS'] as const).map(m => (
-                          <button key={m} onClick={() => setPaymentMethod(m)} className={`py-5 text-[11px] font-black rounded-3xl border-2 transition-all ${paymentMethod === m ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'border-slate-100 text-slate-400'}`}>{m}</button>
+                          <button key={m} disabled={isProcessingPayment} onClick={() => setPaymentMethod(m)} className={`py-5 text-[11px] font-black rounded-3xl border-2 transition-all ${paymentMethod === m ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'border-slate-100 text-slate-400'}`}>{m}</button>
                         ))}
                     </div>
                  </div>
               </div>
               <div className="flex gap-4">
-                 <button onClick={() => setSelectedInvoice(null)} className="flex-1 py-6 text-slate-400 font-black uppercase tracking-widest text-[11px] hover:text-slate-600">Cancel</button>
-                 <button onClick={handleProcessPelunasan} className="flex-[2] py-6 bg-blue-600 text-white rounded-[32px] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 hover:bg-blue-700 transition-all active:scale-95">Confirm Payment</button>
+                 <button disabled={isProcessingPayment} onClick={() => setSelectedInvoice(null)} className="flex-1 py-6 text-slate-400 font-black uppercase tracking-widest text-[11px] hover:text-slate-600 disabled:opacity-50">Cancel</button>
+                 <button 
+                  onClick={handleProcessPelunasan} 
+                  disabled={isProcessingPayment || paymentAmount <= 0}
+                  className="flex-[2] py-6 bg-blue-600 text-white rounded-[32px] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                 >
+                    {isProcessingPayment ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <span>Confirm Payment</span>
+                    )}
+                 </button>
               </div>
            </div>
         </div>

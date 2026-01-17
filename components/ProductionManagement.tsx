@@ -17,7 +17,7 @@ interface ProductionManagementProps {
   materialStocks: MaterialStock[];
   bomProducts: BOM[];
   isLoading: boolean;
-  onSaveBatch: (batches: ProductionBatch[], items: ProductionItem[], costs: BatchCost[], updatedStocks?: Stock[]) => void;
+  onSaveBatch: (batches: ProductionBatch[], items: ProductionItem[], costs: BatchCost[], updatedStocks?: Stock[]) => Promise<void>;
   onSaveBOM: (updated: BOM[]) => void;
 }
 
@@ -67,7 +67,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({
     };
   };
 
-  const handleUpdateBatchData = (batchId: string, updatedBatchFields: Partial<ProductionBatch>, updatedItemsFields?: ProductionItem[], updatedCosts?: BatchCost[], updatedStocks?: Stock[]) => {
+  const handleUpdateBatchData = async (batchId: string, updatedBatchFields: Partial<ProductionBatch>, updatedItemsFields?: ProductionItem[], updatedCosts?: BatchCost[], updatedStocks?: Stock[]) => {
     const updatedBatches = batches.map(b => b.batch_id === batchId ? { ...b, ...updatedBatchFields } : b);
     let finalItems = items;
     if (updatedItemsFields) {
@@ -80,7 +80,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({
     if (updatedCosts) {
        finalCosts = [...batchCosts.filter(c => c.batch_id !== batchId), ...updatedCosts];
     }
-    onSaveBatch(updatedBatches, finalItems, finalCosts, updatedStocks);
+    await onSaveBatch(updatedBatches, finalItems, finalCosts, updatedStocks);
     setIsDetailModalOpen(false);
   };
 
@@ -188,11 +188,12 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({
           materialStocks={materialStocks} 
           bomProducts={bomProducts} 
           onClose={() => setIsFormModalOpen(false)} 
-          onSubmit={(newBatch, newItems, newCosts) => {
+          onSubmit={async (newBatch, newItems, newCosts) => {
             const updatedBatches = [newBatch, ...batches];
             const updatedItems = [...newItems, ...items];
             const updatedCosts = [...newCosts, ...batchCosts];
-            onSaveBatch(updatedBatches, updatedItems, updatedCosts);
+            // Tunggu hingga sinkronisasi berhasil sebelum menutup modal
+            await onSaveBatch(updatedBatches, updatedItems, updatedCosts);
             setIsFormModalOpen(false);
           }} 
           onSaveBOM={onSaveBOM}

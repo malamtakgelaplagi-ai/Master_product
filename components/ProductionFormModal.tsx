@@ -10,7 +10,7 @@ interface ProductionFormModalProps {
   materialStocks: MaterialStock[];
   bomProducts: BOM[];
   onClose: () => void;
-  onSubmit: (batch: ProductionBatch, items: ProductionItem[], costs: BatchCost[]) => void;
+  onSubmit: (batch: ProductionBatch, items: ProductionItem[], costs: BatchCost[]) => Promise<void> | void;
   onSaveBOM: (updated: BOM[]) => void;
   lastBatchId: string;
 }
@@ -25,6 +25,7 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
   const [skuSearch, setSkuSearch] = useState('');
   const [editingRecipeSku, setEditingRecipeSku] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [localBatchCosts, setLocalBatchCosts] = useState<Omit<BatchCost, 'batch_id'>[]>([]);
   const [newCost, setNewCost] = useState({ kategori: 'Produksi', komponen: '', biaya: 0 });
@@ -120,41 +121,75 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
     onSaveBOM(updated);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     if (stockWarnings.length > 0) {
-      setError('Stok bahan baku tidak mencukupi.');
+      setError('Stok bahan baku tidak mencukupi untuk rencana ini.');
       return;
     }
     if (!targetSelesai || selectedItems.length === 0) {
-      setError('Target selesai dan item wajib diisi.');
+      setError('Target selesai dan minimal 1 item produk wajib diisi.');
       return;
     }
     
-    const batch: ProductionBatch = { batch_id: nextId, tanggal_mulai: tanggalMulai, target_selesai: targetSelesai, status: ProductionStatus.DIR, catatan };
-    const items: ProductionItem[] = selectedItems.map(item => ({ batch_id: nextId, sku: item.sku, qty_rencana: item.qty, qty_hasil: 0, qty_rusak: 0 }));
-    const costs: BatchCost[] = localBatchCosts.map(c => ({ ...c, batch_id: nextId }));
+    setIsSubmitting(true);
+    
+    try {
+      const batch: ProductionBatch = { 
+        batch_id: nextId, 
+        tanggal_mulai: tanggalMulai, 
+        target_selesai: targetSelesai, 
+        status: ProductionStatus.DIR, 
+        catatan 
+      };
+      const items: ProductionItem[] = selectedItems.map(item => ({ 
+        batch_id: nextId, 
+        sku: item.sku, 
+        qty_rencana: item.qty, 
+        qty_hasil: 0, 
+        qty_rusak: 0 
+      }));
+      const costs: BatchCost[] = localBatchCosts.map(c => ({ ...c, batch_id: nextId }));
 
-    onSubmit(batch, items, costs);
+      // Langsung eksekusi sinkronisasi dan tunggu hingga selesai
+      await onSubmit(batch, items, costs);
+    } catch (err) {
+      console.error("Sync Error:", err);
+      setError('Gagal menyinkronkan data ke server. Periksa koneksi internet Anda.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300 max-h-[95vh] flex flex-col">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div><h2 className="text-xl font-bold text-slate-900">Rencana Produksi & Estimasi HPP</h2><p className="text-xs text-slate-400 font-mono">{nextId}</p></div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none">✕</button>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Rencana Produksi & Estimasi HPP</h2>
+            <p className="text-xs text-slate-400 font-mono">{nextId}</p>
+          </div>
+          {!isSubmitting && (
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors focus:outline-none">✕</button>
+          )}
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-8 flex-1 bg-slate-50">
-          {error && <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">{error}</div>}
+          {error && (
+            <div className="p-4 bg-rose-50 text-rose-700 text-xs font-bold rounded-2xl border border-rose-100 flex items-center gap-3 animate-in shake duration-300">
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+               {error}
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tanggal Mulai</label><input type="date" className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm" value={tanggalMulai} onChange={e => setTanggalMulai(e.target.value)} /></div>
-            <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Target Selesai</label><input type="date" className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm" value={targetSelesai} onChange={e => setTargetSelesai(e.target.value)} /></div>
+            <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tanggal Mulai</label><input type="date" disabled={isSubmitting} className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm" value={tanggalMulai} onChange={e => setTanggalMulai(e.target.value)} /></div>
+            <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Target Selesai</label><input type="date" disabled={isSubmitting} className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm" value={targetSelesai} onChange={e => setTargetSelesai(e.target.value)} /></div>
             <div className="col-span-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Catatan Batch / Keterangan</label>
               <textarea 
+                disabled={isSubmitting}
                 className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm min-h-[60px]" 
                 placeholder="Contoh: Produksi untuk koleksi lebaran, Vendor Jahit Pak Budi..."
                 value={catatan}
@@ -168,12 +203,13 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
             <div className="relative">
               <input 
                 type="text" 
+                disabled={isSubmitting}
                 placeholder="Cari SKU atau Nama Produk..." 
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white" 
                 value={skuSearch} 
                 onChange={e => setSkuSearch(e.target.value)} 
               />
-              {filteredVariants.length > 0 && (
+              {filteredVariants.length > 0 && !isSubmitting && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
                   {filteredVariants.map(v => {
                     const p = products.find(prod => prod.product_id === v.product_id);
@@ -202,11 +238,11 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
                            <div className="text-xs font-black text-slate-900">{item.sku}</div>
                            <div className="text-[9px] text-slate-400 font-bold uppercase">{variants.find(v => v.sku === item.sku)?.warna}</div>
                         </td>
-                        <td className="px-4 py-3"><input type="number" className="w-full text-center px-2 py-1 border border-slate-200 rounded-lg text-sm font-black" value={item.qty} onChange={e => handleUpdateQty(item.sku, parseInt(e.target.value) || 0)} /></td>
+                        <td className="px-4 py-3"><input type="number" disabled={isSubmitting} className="w-full text-center px-2 py-1 border border-slate-200 rounded-lg text-sm font-black" value={item.qty} onChange={e => handleUpdateQty(item.sku, parseInt(e.target.value) || 0)} /></td>
                         <td className="px-4 py-3 text-center">
-                          <button type="button" onClick={() => setEditingRecipeSku(editingRecipeSku === item.sku ? null : item.sku)} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${editingRecipeSku === item.sku ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Resep</button>
+                          <button type="button" disabled={isSubmitting} onClick={() => setEditingRecipeSku(editingRecipeSku === item.sku ? null : item.sku)} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${editingRecipeSku === item.sku ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Resep</button>
                         </td>
-                        <td className="px-4 py-3"><button type="button" onClick={() => setSelectedItems(selectedItems.filter(i => i.sku !== item.sku))} className="text-rose-300 hover:text-rose-500 transition-colors">✕</button></td>
+                        <td className="px-4 py-3"><button type="button" disabled={isSubmitting} onClick={() => setSelectedItems(selectedItems.filter(i => i.sku !== item.sku))} className="text-rose-300 hover:text-rose-500 transition-colors">✕</button></td>
                       </tr>
                       {editingRecipeSku === item.sku && (
                         <tr className="bg-blue-50/20">
@@ -216,12 +252,12 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
                                   <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Atur Komposisi Bahan Per Pcs</h4>
                                 </div>
                                 <div className="grid grid-cols-12 gap-2">
-                                  <select className="col-span-7 px-3 py-1.5 text-xs border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={newBOMEntry.material_id} onChange={e => setNewBOMEntry({...newBOMEntry, material_id: e.target.value})}>
+                                  <select disabled={isSubmitting} className="col-span-7 px-3 py-1.5 text-xs border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={newBOMEntry.material_id} onChange={e => setNewBOMEntry({...newBOMEntry, material_id: e.target.value})}>
                                     <option value="">-- Pilih Bahan Baku --</option>
                                     {materials.map(m => <option key={m.material_id} value={m.material_id}>{m.nama_bahan}</option>)}
                                   </select>
-                                  <input type="number" step="0.01" className="col-span-3 px-3 py-1.5 text-xs border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" value={newBOMEntry.qty || ''} onChange={e => setNewBOMEntry({...newBOMEntry, qty: Number(e.target.value)})} />
-                                  <button type="button" onClick={handleAddBOMIngredient} className="col-span-2 bg-blue-600 text-white rounded-lg text-xs font-black hover:bg-blue-700 active:scale-95">+</button>
+                                  <input disabled={isSubmitting} type="number" step="0.01" className="col-span-3 px-3 py-1.5 text-xs border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Qty" value={newBOMEntry.qty || ''} onChange={e => setNewBOMEntry({...newBOMEntry, qty: Number(e.target.value)})} />
+                                  <button disabled={isSubmitting} type="button" onClick={handleAddBOMIngredient} className="col-span-2 bg-blue-600 text-white rounded-lg text-xs font-black hover:bg-blue-700 active:scale-95">+</button>
                                 </div>
                                 <div className="space-y-1 mt-3">
                                   {bomProducts.filter(b => b.sku === item.sku).map(b => (
@@ -229,14 +265,16 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
                                       <span>{materials.find(m => m.material_id === b.material_id)?.nama_bahan}</span>
                                       <div className="flex items-center gap-3">
                                         <span className="text-slate-900">{b.qty_per_pcs} {materials.find(m => m.material_id === b.material_id)?.satuan} / Pc</span>
-                                        <button 
-                                          type="button" 
-                                          onClick={() => handleDeleteBOMIngredient(b.material_id)} 
-                                          className="text-slate-300 hover:text-rose-500 transition-colors p-1"
-                                          title="Hapus bahan dari resep"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
+                                        {!isSubmitting && (
+                                          <button 
+                                            type="button" 
+                                            onClick={() => handleDeleteBOMIngredient(b.material_id)} 
+                                            className="text-slate-300 hover:text-rose-500 transition-colors p-1"
+                                            title="Hapus bahan dari resep"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                   ))}
@@ -261,9 +299,9 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
           <div className="space-y-4">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Biaya Operasional Produksi (Labor/Overhead)</label>
             <div className="grid grid-cols-12 gap-2">
-               <input className="col-span-6 px-4 py-2 border rounded-xl text-sm" placeholder="Contoh: Ongkos Jahit Satuan" value={newCost.komponen} onChange={e => setNewCost({...newCost, komponen: e.target.value})} />
-               <input type="number" className="col-span-4 px-4 py-2 border rounded-xl text-sm" placeholder="Total Biaya" value={newCost.biaya || ''} onChange={e => setNewCost({...newCost, biaya: Number(e.target.value)})} />
-               <button type="button" onClick={handleAddBatchCost} className="col-span-2 bg-slate-900 text-white rounded-xl text-xs font-black">ADD</button>
+               <input disabled={isSubmitting} className="col-span-6 px-4 py-2 border rounded-xl text-sm" placeholder="Contoh: Ongkos Jahit Satuan" value={newCost.komponen} onChange={e => setNewCost({...newCost, komponen: e.target.value})} />
+               <input disabled={isSubmitting} type="number" className="col-span-4 px-4 py-2 border rounded-xl text-sm" placeholder="Total Biaya" value={newCost.biaya || ''} onChange={e => setNewCost({...newCost, biaya: Number(e.target.value)})} />
+               <button disabled={isSubmitting} type="button" onClick={handleAddBatchCost} className="col-span-2 bg-slate-900 text-white rounded-xl text-xs font-black">ADD</button>
             </div>
             <div className="space-y-2">
                {localBatchCosts.map((c, i) => (
@@ -271,7 +309,9 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
                     <span className="text-xs font-bold text-slate-700">{c.komponen}</span>
                     <div className="flex items-center gap-4">
                       <span className="text-xs font-black">Rp {c.biaya.toLocaleString()}</span>
-                      <button type="button" onClick={() => setLocalBatchCosts(localBatchCosts.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 transition-colors">✕</button>
+                      {!isSubmitting && (
+                        <button type="button" onClick={() => setLocalBatchCosts(localBatchCosts.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 transition-colors">✕</button>
+                      )}
                     </div>
                  </div>
                ))}
@@ -289,12 +329,12 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
                       <div key={item.sku} className="p-4 bg-white/5 border border-white/10 rounded-2xl">
                         <p className="text-[9px] font-black text-slate-500 uppercase mb-1">{item.sku}</p>
                         <div className="flex justify-between items-center mb-2">
-                           <span className="text-xl font-black text-white">Rp {Math.round(breakdown.total).toLocaleString()}</span>
+                           <span className="text-xl font-black text-white">Rp {Math.round(breakdown?.total || 0).toLocaleString()}</span>
                            <span className="text-[9px] font-black bg-blue-600 px-2 py-0.5 rounded">PER PCS</span>
                         </div>
                         <div className="space-y-1 pt-2 border-t border-white/5">
-                           <div className="flex justify-between text-[9px] font-bold opacity-50"><span>Bahan Baku:</span><span>Rp {Math.round(breakdown.material).toLocaleString()}</span></div>
-                           <div className="flex justify-between text-[9px] font-bold opacity-50"><span>Allocated Cost:</span><span>Rp {Math.round(breakdown.overhead).toLocaleString()}</span></div>
+                           <div className="flex justify-between text-[9px] font-bold opacity-50"><span>Bahan Baku:</span><span>Rp {Math.round(breakdown?.material || 0).toLocaleString()}</span></div>
+                           <div className="flex justify-between text-[9px] font-bold opacity-50"><span>Allocated Cost:</span><span>Rp {Math.round(breakdown?.overhead || 0).toLocaleString()}</span></div>
                         </div>
                       </div>
                     );
@@ -322,8 +362,22 @@ const ProductionFormModal: React.FC<ProductionFormModalProps> = ({
         </form>
         
         <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-          <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-semibold text-slate-500">Batal</button>
-          <button type="button" onClick={handleSubmit} className="px-10 py-3 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all">Selesaikan Rencana</button>
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="px-6 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 disabled:opacity-30 transition-colors">Batal</button>
+          <button 
+            type="button" 
+            onClick={handleSubmit} 
+            disabled={isSubmitting}
+            className="min-w-[220px] px-10 py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>Menyinkronkan...</span>
+              </>
+            ) : (
+              <span>Selesaikan Rencana</span>
+            )}
+          </button>
         </div>
       </div>
     </div>

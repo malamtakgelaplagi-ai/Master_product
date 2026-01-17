@@ -81,7 +81,6 @@ const App: React.FC = () => {
     if (!currentUser) return;
     const businessUrl = spreadsheetService.getBusinessUrl();
     
-    // Validasi dasar, Spreadsheet B sudah hardcoded di service
     if (!businessUrl) {
       setIsLoading(false);
       return;
@@ -201,6 +200,47 @@ const App: React.FC = () => {
     saveProducts(updated);
   };
 
+  const handleUpdatePayment = async (invoice: string, amount: number, method: string) => {
+    const saleIdx = sales.findIndex(s => s.invoice === invoice);
+    if (saleIdx === -1) return;
+
+    const sale = sales[saleIdx];
+    const newDp = Number(sale.dp) + amount;
+    const newSisa = Math.max(0, Number(sale.total) - newDp);
+    const newStatus = newSisa <= 0 ? 'PAID' : 'DP';
+
+    const updatedSale = { ...sale, dp: newDp, sisa: newSisa, status: newStatus as any };
+    const updatedSales = [...sales];
+    updatedSales[saleIdx] = updatedSale;
+
+    const newPaymentLog: PaymentLog = {
+      id: 'PAY-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+      invoice,
+      tanggal: new Date().toISOString(),
+      jumlah: amount,
+      metode: method,
+      user: currentUser?.nama || 'Kasir'
+    };
+
+    const updatedPaymentLogs = [newPaymentLog, ...paymentLogs];
+
+    setSales(updatedSales);
+    setPaymentLogs(updatedPaymentLogs);
+
+    setIsSyncing(true);
+    try {
+      await Promise.all([
+        spreadsheetService.syncSales(updatedSales),
+        spreadsheetService.syncPaymentLogs(updatedPaymentLogs)
+      ]);
+      setSyncMessage({ text: 'Pelunasan Berhasil Disinkronkan', type: 'success' });
+    } catch (e) {
+      setSyncMessage({ text: 'Sinkronisasi Gagal', type: 'error' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const filteredProducts = useMemo(() => {
     const query = searchQuery.toLowerCase();
     return products.filter(p => 
@@ -249,6 +289,12 @@ const App: React.FC = () => {
             </h2>
           </div>
           <div className="flex items-center gap-6">
+             {isSyncing && (
+                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 animate-pulse">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Syncing Data...</span>
+                </div>
+             )}
              <div className="flex items-center gap-4">
                <div className="text-right border-r border-slate-100 pr-4">
                   <p className="text-sm font-black text-[#1D1D1F]">{currentUser.nama}</p>
@@ -387,7 +433,7 @@ const App: React.FC = () => {
           {activePage === 'variants' && isAllowed('variants') && <div className="mt-10"><VariantManagement products={products} categories={categories} variants={variants} stocks={stocks} warehouses={warehouses} onSave={async (v, s) => { setVariants(v); setStocks(s); setIsSyncing(true); await spreadsheetService.syncVariants(v); await spreadsheetService.syncStocks(s); setIsSyncing(false); }} isLoading={isLoading} /></div>}
           {activePage === 'production' && isAllowed('production') && <div className="mt-10"><ProductionManagement batches={productionBatches} items={productionItems} variants={variants} stocks={stocks} products={products} batchCosts={batchCosts} warehouses={warehouses} materials={materials} materialStocks={materialStocks} bomProducts={bomProducts} isLoading={isLoading} onSaveBatch={async (b, i, c, s) => { setProductionBatches(b); setIsSyncing(true); await spreadsheetService.syncProductionBatches(b); await spreadsheetService.syncProductionItems(i); await spreadsheetService.syncBatchCosts(c); if(s) await spreadsheetService.syncStocks(s); setIsSyncing(false); }} onSaveBOM={async (bom) => { setBomProducts(bom); setIsSyncing(true); await spreadsheetService.syncBOM(bom); setIsSyncing(false); }} /></div>}
           {activePage === 'stock' && isAllowed('stock') && <div className="mt-10"><StockManagement variants={variants} stocks={stocks} products={products} stockLogs={stockLogs} warehouses={warehouses} isLoading={isLoading} onSaveAdjustment={async (s, l) => { setStocks(s); setIsSyncing(true); await spreadsheetService.syncStocks(s); await spreadsheetService.syncStockLogs([...l, ...stockLogs]); setIsSyncing(false); }} /></div>}
-          {activePage === 'sales' && isAllowed('sales') && <div className="mt-10"><SalesManagement variants={variants} stocks={stocks} products={products} sales={sales} paymentLogs={paymentLogs} customers={customers} warehouses={warehouses} onSaveSale={async (sl, i, s) => { setSales([sl, ...sales]); setSalesItems([...i, ...salesItems]); setStocks(s); setIsSyncing(true); await spreadsheetService.syncSales([sl, ...sales]); await spreadsheetService.syncSalesItems([...i, ...salesItems]); await spreadsheetService.syncStocks(s); setIsSyncing(false); }} onUpdatePayment={async () => {}} isLoading={isLoading} /></div>}
+          {activePage === 'sales' && isAllowed('sales') && <div className="mt-10"><SalesManagement variants={variants} stocks={stocks} products={products} sales={sales} paymentLogs={paymentLogs} customers={customers} warehouses={warehouses} onSaveSale={async (sl, i, s) => { setSales([sl, ...sales]); setSalesItems([...i, ...salesItems]); setStocks(s); setIsSyncing(true); await spreadsheetService.syncSales([sl, ...sales]); await spreadsheetService.syncSalesItems([...i, ...salesItems]); await spreadsheetService.syncStocks(s); setIsSyncing(false); }} onUpdatePayment={handleUpdatePayment} isLoading={isLoading} /></div>}
           {activePage === 'reports' && isAllowed('reports') && <div className="mt-10"><ReportsManagement sales={sales} salesItems={salesItems} variants={variants} products={products} stocks={stocks} paymentLogs={paymentLogs} isLoading={isLoading} /></div>}
           {activePage === 'settings' && isAllowed('settings') && <div className="mt-10"><SettingsPage isLoading={isLoading} onRefreshData={loadData} users={users} onSyncUsers={async (u) => { setUsers(u); await spreadsheetService.syncUsers(u); }} isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} /></div>}
         </main>
