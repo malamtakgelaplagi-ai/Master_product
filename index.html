@@ -19,10 +19,15 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Custom Ring for focused states */
         input:focus, select:focus, textarea:focus {
             outline: none;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Print optimization */
+        @media print {
+            .print\:hidden { display: none !important; }
+            body { background: white; }
         }
     </style>
 <script type="importmap">
@@ -38,5 +43,7 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- Load the entry point script as a module -->
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>
