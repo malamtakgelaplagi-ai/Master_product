@@ -16,24 +16,24 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 }) => {
   const [type, setType] = useState<'plus' | 'minus'>('plus');
   const [value, setValue] = useState<string>('');
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState('Stok Awal');
   const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const adjValue = parseInt(value);
     if (isNaN(adjValue) || adjValue <= 0) {
-      setError('Masukkan angka yang valid.');
+      setError('Masukkan angka stok yang valid.');
       return;
     }
     if (!reason.trim()) {
-      setError('Alasan penyesuaian wajib diisi.');
+      setError('Alasan wajib diisi (ex: Stok Awal).');
       return;
     }
 
     const finalAdjustment = type === 'plus' ? adjValue : -adjValue;
     if (currentStock + finalAdjustment < 0) {
-      setError('Stok akhir tidak boleh negatif.');
+      setError('Stok tidak boleh minus setelah dikurangi.');
       return;
     }
 
@@ -41,77 +41,90 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4">
+      <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="p-10 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Penyesuaian Stok</h2>
-            <p className="text-[10px] font-mono text-slate-400">{sku}</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Adjust Inventory</h2>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">{sku}</span>
+              <span className="text-slate-400 font-bold text-xs">Current: {currentStock} Pcs</span>
+            </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2" /></svg>
+          <button onClick={onClose} className="p-3 bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl transition-all">
+             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-10 space-y-10">
            {error && (
-             <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">{error}</div>
+             <div className="p-5 bg-rose-50 text-rose-600 text-xs font-black rounded-3xl border border-rose-100 flex items-center gap-3">
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+               {error}
+             </div>
            )}
 
-           <div className="flex gap-2">
+           <div className="flex p-2 bg-slate-100 rounded-[32px] gap-2">
               <button 
                 type="button" 
                 onClick={() => setType('plus')}
-                className={`flex-1 py-3 rounded-xl border-2 font-black text-sm transition-all ${type === 'plus' ? 'bg-green-50 border-green-500 text-green-700' : 'border-slate-100 text-slate-400'}`}
+                className={`flex-1 py-5 rounded-[28px] font-black text-sm tracking-widest transition-all ${type === 'plus' ? 'bg-white text-emerald-600 shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}
               >+ TAMBAH</button>
               <button 
                 type="button" 
                 onClick={() => setType('minus')}
-                className={`flex-1 py-3 rounded-xl border-2 font-black text-sm transition-all ${type === 'minus' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-100 text-slate-400'}`}
+                className={`flex-1 py-5 rounded-[28px] font-black text-sm tracking-widest transition-all ${type === 'minus' ? 'bg-white text-rose-500 shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}
               >- KURANG</button>
            </div>
 
-           <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jumlah Perubahan</label>
+           <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] px-4">Kuantitas Adjustment</label>
               <input 
                 type="number" 
-                className="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black text-center outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full py-8 bg-slate-50 border-2 border-slate-50 rounded-[32px] text-5xl font-black text-center text-slate-900 outline-none transition-all focus:bg-white focus:border-indigo-600"
                 placeholder="0"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />
            </div>
 
-           <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alasan Perubahan</label>
+           <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] px-4">Keterangan / Alasan</label>
+              <div className="flex gap-2 mb-3">
+                {['Stok Awal', 'Input Produk Jadi', 'Opname'].map(r => (
+                  <button 
+                    key={r} 
+                    type="button" 
+                    onClick={() => setReason(r)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${reason === r ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-400 border-slate-200'}`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
               <textarea 
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[32px] text-sm font-medium outline-none focus:bg-white transition-all"
                 rows={3}
-                placeholder="Contoh: Barang rusak saat display, selisih stok fisik opname..."
+                placeholder="Ketik alasan lainnya..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
               ></textarea>
            </div>
 
-           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-blue-600 font-medium">Stok Saat Ini:</span>
-                <span className="font-black text-blue-900">{currentStock}</span>
+           <div className="flex items-center justify-between p-8 bg-slate-900 rounded-[40px] text-white">
+              <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Final Inventory State</p>
+                <p className="text-4xl font-black tracking-tighter">
+                  {currentStock + (parseInt(value) || 0) * (type === 'plus' ? 1 : -1)} <span className="text-xs text-slate-500 font-bold uppercase">Pcs</span>
+                </p>
               </div>
-              <div className="flex justify-between items-center text-sm mt-1">
-                <span className="text-blue-700 font-bold">Estimasi Stok Akhir:</span>
-                <span className="font-black text-blue-900 text-lg">
-                  {currentStock + (parseInt(value) || 0) * (type === 'plus' ? 1 : -1)}
-                </span>
-              </div>
+              <button 
+                type="submit"
+                className="px-10 py-5 bg-indigo-600 text-white rounded-[24px] font-black text-xs uppercase tracking-widest shadow-2xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
+              >
+                Apply Changes
+              </button>
            </div>
-
-           <button 
-             type="submit"
-             className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-black transition-all active:scale-95"
-           >
-             SIMPAN PERUBAHAN STOK
-           </button>
         </form>
       </div>
     </div>

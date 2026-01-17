@@ -1,9 +1,20 @@
 
-import { Product, Category, Variant, Stock, StockLog, ProductionBatch, ProductionItem, Sale, SaleItem, ProductCost, BatchCost, PaymentLog, Warehouse, Customer, Material, MaterialStock, MaterialStockLog, BOM } from '../types';
+import { Product, Category, Variant, Stock, StockLog, ProductionBatch, ProductionItem, Sale, SaleItem, ProductCost, BatchCost, PaymentLog, Warehouse, Customer, Material, MaterialStock, MaterialStockLog, BOM, User } from '../types';
+
+// =============================================================
+// PASTE URL WEB APP SPREADSHEET B (KEAMANAN) DI SINI
+// =============================================================
+const HARDCODED_AUTH_URL = 'https://script.google.com/macros/s/AKfycbwhIv0K_CfuKNn2tKPFwh78BJvFahraM8d4DwOPheo3yBSRrKUtdobNSbYWvSuFKfRJZA/exec';
+// =============================================================
 
 export const spreadsheetService = {
-  getApiUrl(): string {
-    return localStorage.getItem('BACKEND_URL') || '';
+  getBusinessUrl(): string {
+    return localStorage.getItem('BUSINESS_BACKEND_URL') || '';
+  },
+
+  getAuthUrl(): string {
+    // Sekarang mengambil langsung dari variabel di atas, bukan localStorage
+    return HARDCODED_AUTH_URL;
   },
 
   async fetchData(): Promise<{ 
@@ -26,25 +37,12 @@ export const spreadsheetService = {
     material_stock_logs: MaterialStockLog[];
     bom_products: BOM[];
   }> {
-    const url = this.getApiUrl();
+    const url = this.getBusinessUrl();
     const defaultData = { 
-      products: [], 
-      categories: [], 
-      variants: [], 
-      stocks: [], 
-      stock_logs: [],
-      sales: [],
-      sales_items: [],
-      payment_logs: [],
-      production_batches: [], 
-      production_items: [],
-      product_costs: [],
-      batch_costs: [],
-      warehouses: [],
-      customers: [],
-      materials: [],
-      material_stocks: [],
-      material_stock_logs: [],
+      products: [], categories: [], variants: [], stocks: [], stock_logs: [],
+      sales: [], sales_items: [], payment_logs: [], production_batches: [], 
+      production_items: [], product_costs: [], batch_costs: [], warehouses: [], 
+      customers: [], materials: [], material_stocks: [], material_stock_logs: [], 
       bom_products: []
     };
 
@@ -52,7 +50,7 @@ export const spreadsheetService = {
 
     try {
       const response = await fetch(`${url}?action=getData`);
-      if (!response.ok) throw new Error('Failed to fetch from sheet');
+      if (!response.ok) throw new Error('Failed to fetch from business sheet');
       
       const data = await response.json();
       if (!data) return defaultData;
@@ -88,9 +86,51 @@ export const spreadsheetService = {
         bom_products: Array.isArray(data.bom_products) ? data.bom_products : []
       };
     } catch (error) {
-      console.error('Spreadsheet Fetch Error:', error);
+      console.error('Business Spreadsheet Fetch Error:', error);
       return defaultData;
     }
+  },
+
+  async fetchUsers(): Promise<User[]> {
+    const url = this.getAuthUrl();
+    if (!url || url.includes('MASUKKAN_URL')) return [];
+    try {
+      const response = await fetch(`${url}?action=getUsers`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data.users) ? data.users : [];
+    } catch (e) {
+      console.error('Auth Fetch Error:', e);
+      return [];
+    }
+  },
+
+  async login(email: string, password_plain: string): Promise<{ success: boolean; user?: User; message?: string }> {
+    const users = await this.fetchUsers();
+    if (users.length === 0) return { success: false, message: 'Gagal memuat database user. Periksa URL Keamanan di kode.' };
+    
+    const user = users.find(u => u.email === email);
+    if (!user) return { success: false, message: 'Email tidak ditemukan.' };
+    if (user.status !== 'AKTIF') return { success: false, message: 'Akun belum aktif atau dinonaktifkan.' };
+    
+    if (user.password === password_plain) {
+      const { password, ...safeUser } = user;
+      return { success: true, user: safeUser as User };
+    }
+    
+    return { success: false, message: 'Password salah.' };
+  },
+
+  async signUp(newUser: Omit<User, 'uid' | 'status'>): Promise<boolean> {
+    const users = await this.fetchUsers();
+    const uid = 'USR-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    const userToSave: User = { ...newUser, uid, status: 'PENDING' };
+    
+    return this.postToAuth('saveUsers', [...users, userToSave]);
+  },
+
+  async syncUsers(users: User[]): Promise<boolean> {
+    return this.postToAuth('saveUsers', users);
   },
 
   ensureArray(val: any): string[] {
@@ -102,7 +142,7 @@ export const spreadsheetService = {
     return [];
   },
 
-  async syncProducts(products: Product[]): Promise<boolean> { return this.post('saveProducts', products); },
+  async syncProducts(products: Product[]): Promise<boolean> { return this.postToBusiness('saveProducts', products); },
   async syncCategories(categories: Category[]): Promise<boolean> {
     const flattenedCategories = categories.map(cat => ({
       ...cat,
@@ -111,30 +151,35 @@ export const spreadsheetService = {
       availableColors: Array.isArray(cat.availableColors) ? cat.availableColors.join(', ') : cat.availableColors,
       availableMaterials: Array.isArray(cat.availableMaterials) ? cat.availableMaterials.join(', ') : cat.availableMaterials,
     }));
-    return this.post('saveCategories', flattenedCategories);
+    return this.postToBusiness('saveCategories', flattenedCategories);
   },
-  async syncVariants(variants: Variant[]): Promise<boolean> { return this.post('saveVariants', variants); },
-  async syncStocks(stocks: Stock[]): Promise<boolean> { return this.post('saveStocks', stocks); },
-  async syncStockLogs(logs: StockLog[]): Promise<boolean> { return this.post('saveStockLogs', logs); },
-  async syncSales(sales: Sale[]): Promise<boolean> { return this.post('saveSales', sales); },
-  async syncSalesItems(items: SaleItem[]): Promise<boolean> { return this.post('saveSalesItems', items); },
-  async syncPaymentLogs(logs: PaymentLog[]): Promise<boolean> { return this.post('savePaymentLogs', logs); },
-  async syncProductionBatches(batches: ProductionBatch[]): Promise<boolean> { return this.post('saveProductionBatches', batches); },
-  async syncProductionItems(items: ProductionItem[]): Promise<boolean> { return this.post('saveProductionItems', items); },
-  async syncProductCosts(costs: ProductCost[]): Promise<boolean> { return this.post('saveProductCosts', costs); },
-  async syncBatchCosts(costs: BatchCost[]): Promise<boolean> { return this.post('saveBatchCosts', costs); },
-  async syncWarehouses(warehouses: Warehouse[]): Promise<boolean> { return this.post('saveWarehouses', warehouses); },
-  async syncCustomers(customers: Customer[]): Promise<boolean> { return this.post('saveCustomers', customers); },
-  
-  // New Material Actions
-  async syncMaterials(materials: Material[]): Promise<boolean> { return this.post('saveMaterials', materials); },
-  async syncMaterialStocks(stocks: MaterialStock[]): Promise<boolean> { return this.post('saveMaterialStock', stocks); },
-  async syncMaterialStockLogs(logs: MaterialStockLog[]): Promise<boolean> { return this.post('saveMaterialStockLogs', logs); },
-  async syncBOM(bom: BOM[]): Promise<boolean> { return this.post('saveBOM', bom); },
+  async syncVariants(variants: Variant[]): Promise<boolean> { return this.postToBusiness('saveVariants', variants); },
+  async syncStocks(stocks: Stock[]): Promise<boolean> { return this.postToBusiness('saveStocks', stocks); },
+  async syncStockLogs(logs: StockLog[]): Promise<boolean> { return this.postToBusiness('saveStockLogs', logs); },
+  async syncSales(sales: Sale[]): Promise<boolean> { return this.postToBusiness('saveSales', sales); },
+  async syncSalesItems(items: SaleItem[]): Promise<boolean> { return this.postToBusiness('saveSalesItems', items); },
+  async syncPaymentLogs(logs: PaymentLog[]): Promise<boolean> { return this.postToBusiness('savePaymentLogs', logs); },
+  async syncProductionBatches(batches: ProductionBatch[]): Promise<boolean> { return this.postToBusiness('saveProductionBatches', batches); },
+  async syncProductionItems(items: ProductionItem[]): Promise<boolean> { return this.postToBusiness('saveProductionItems', items); },
+  async syncProductCosts(costs: ProductCost[]): Promise<boolean> { return this.postToBusiness('saveProductCosts', costs); },
+  async syncBatchCosts(costs: BatchCost[]): Promise<boolean> { return this.postToBusiness('saveBatchCosts', costs); },
+  async syncWarehouses(warehouses: Warehouse[]): Promise<boolean> { return this.postToBusiness('saveWarehouses', warehouses); },
+  async syncCustomers(customers: Customer[]): Promise<boolean> { return this.postToBusiness('saveCustomers', customers); },
+  async syncMaterials(materials: Material[]): Promise<boolean> { return this.postToBusiness('saveMaterials', materials); },
+  async syncMaterialStocks(stocks: MaterialStock[]): Promise<boolean> { return this.postToBusiness('saveMaterialStock', stocks); },
+  async syncMaterialStockLogs(logs: MaterialStockLog[]): Promise<boolean> { return this.postToBusiness('saveMaterialStockLogs', logs); },
+  async syncBOM(bom: BOM[]): Promise<boolean> { return this.postToBusiness('saveBOM', bom); },
 
-  async post(action: string, data: any): Promise<boolean> {
-    const url = this.getApiUrl();
-    if (!url) return false;
+  async postToBusiness(action: string, data: any): Promise<boolean> {
+    return this.rawPost(this.getBusinessUrl(), action, data);
+  },
+
+  async postToAuth(action: string, data: any): Promise<boolean> {
+    return this.rawPost(this.getAuthUrl(), action, data);
+  },
+
+  async rawPost(url: string, action: string, data: any): Promise<boolean> {
+    if (!url || url.includes('MASUKKAN_URL')) return false;
     try {
       await fetch(url, {
         method: 'POST',
@@ -152,6 +197,15 @@ export const spreadsheetService = {
   async testConnection(url: string): Promise<boolean> {
     try {
       const response = await fetch(`${url}?action=getData`);
+      return response.ok;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async testAuthConnection(url: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${url}?action=getUsers`);
       return response.ok;
     } catch (e) {
       return false;

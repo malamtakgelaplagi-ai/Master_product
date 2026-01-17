@@ -4,30 +4,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MasterProduk - Enterprise Data Management</title>
+    <title>Konveksi - Premium Enterprise MDM</title>
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='10' fill='%230071E3'/%3E%3Cpath d='M16 7L9 14h3v10h8V14h3l-7-7z' fill='white'/%3E%3C/svg%3E">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #fcfdfe;
-            color: #0f172a;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #FBFBFD;
+            color: #1D1D1F;
             -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
         }
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .premium-card {
+            background: #FFFFFF;
+            border: 1px solid #F2F2F7;
+            border-radius: 32px;
+            box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        .premium-card:hover {
+            box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08);
         }
 
-        /* Print optimization */
-        @media print {
-            .print\:hidden { display: none !important; }
-            body { background: white; }
+        .sidebar-item-active {
+            background: #F5F5F7;
+            color: #000000;
+        }
+        
+        .sidebar-item-active svg {
+            color: #0071E3;
+        }
+
+        input, select, textarea {
+            background-color: #F5F5F7 !important;
+            border: 1px solid transparent !important;
+            transition: all 0.2s ease !important;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            background-color: #FFFFFF !important;
+            border-color: #0071E3 !important;
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1) !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.05); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.1); }
+        
+        .glass-header {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: saturate(180%) blur(20px);
         }
     </style>
 <script type="importmap">
@@ -43,7 +82,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Load the entry point script as a module -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>

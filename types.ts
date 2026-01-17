@@ -21,6 +21,20 @@ export enum ProductionStage {
   COMPLETED = 'COMPLETED'
 }
 
+// AUTH TYPES
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'KASIR' | 'STAFF';
+export type UserStatus = 'PENDING' | 'AKTIF' | 'NONAKTIF';
+
+export interface User {
+  uid: string;
+  nama: string;
+  email: string;
+  password?: string;
+  role: UserRole;
+  status: UserStatus;
+  last_login?: string;
+}
+
 // RAW MATERIALS
 export interface Material {
   material_id: string;

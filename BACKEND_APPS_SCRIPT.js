@@ -26,7 +26,8 @@ function doGet(e) {
       materials: getSheetData(ss, 'materials'),
       material_stock: getSheetData(ss, 'material_stock'),
       material_stock_logs: getSheetData(ss, 'material_stock_logs'),
-      bom_products: getSheetData(ss, 'bom_products')
+      bom_products: getSheetData(ss, 'bom_products'),
+      users: getSheetData(ss, 'users')
     };
     
     return ContentService.createTextOutput(JSON.stringify(data))
@@ -58,7 +59,8 @@ function doPost(e) {
     'saveMaterials': 'materials',
     'saveMaterialStock': 'material_stock',
     'saveMaterialStockLogs': 'material_stock_logs',
-    'saveBOM': 'bom_products'
+    'saveBOM': 'bom_products',
+    'saveUsers': 'users'
   };
   
   const sheetName = actionsMap[action];
@@ -114,7 +116,8 @@ function setupDatabase() {
     'materials': ['material_id', 'nama_bahan', 'kategori', 'satuan', 'harga_rata2', 'aktif'],
     'material_stock': ['material_id', 'stok'],
     'material_stock_logs': ['tanggal', 'material_id', 'qty', 'jenis', 'referensi', 'catatan'],
-    'bom_products': ['sku', 'material_id', 'qty_per_pcs']
+    'bom_products': ['sku', 'material_id', 'qty_per_pcs'],
+    'users': ['uid', 'nama', 'email', 'password', 'role', 'status', 'last_login']
   };
   
   for (const name in sheets) {

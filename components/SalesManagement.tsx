@@ -164,7 +164,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
       return;
     }
     if (!selectedCustomerId) {
-      setError('Pilih Customer terlebih dahulu.');
+      setError('Pilih Pelanggan terlebih dahulu.');
       return;
     }
     if (!selectedWarehouseId) {
@@ -237,9 +237,9 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex gap-1.5 p-1.5 bg-slate-100 rounded-2xl w-fit">
-        <button onClick={() => setActiveTab('pos')} className={`px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'pos' ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>New Transaction</button>
+        <button onClick={() => setActiveTab('pos')} className={`px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'pos' ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Transaksi Baru</button>
         <button onClick={() => setActiveTab('piutang')} className={`px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'piutang' ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>
-          Receivables {dpInvoices.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{dpInvoices.length}</span>}
+          Piutang {dpInvoices.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{dpInvoices.length}</span>}
         </button>
       </div>
 
@@ -249,7 +249,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Customer</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Pelanggan</label>
                     <select 
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:bg-white focus:border-blue-500 transition-all"
                       value={selectedCustomerId}
@@ -260,7 +260,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Warehouse</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Gudang</label>
                     <select 
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:bg-white focus:border-blue-500 transition-all"
                       value={selectedWarehouseId}
@@ -285,7 +285,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                   </div>
                   <input 
                     type="text" 
-                    placeholder="Search SKU or Product Name..."
+                    placeholder="Cari SKU atau Nama Produk..."
                     className="w-full pl-14 pr-5 py-5 bg-slate-50 border border-slate-200 rounded-[24px] font-bold text-lg outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-50 transition-all"
                     value={skuSearch}
                     onChange={(e) => setSkuSearch(e.target.value)}
@@ -408,8 +408,8 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
               </div>
 
               <div className="grid grid-cols-1 gap-4 relative z-10">
-                  <button onClick={() => handleCheckout(false)} disabled={cart.length === 0 || dp >= totalAkhir} className="w-full py-5 bg-white/5 hover:bg-white/10 rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] border border-white/10 transition-all disabled:opacity-30">Mark as Installment</button>
-                  <button onClick={() => handleCheckout(true)} disabled={cart.length === 0} className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-[24px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 transition-all active:scale-95 disabled:opacity-50">Settle & Print</button>
+                  <button onClick={() => handleCheckout(false)} disabled={cart.length === 0 || dp >= totalAkhir} className="w-full py-5 bg-white/5 hover:bg-white/10 rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] border border-white/10 transition-all disabled:opacity-30">DP</button>
+                  <button onClick={() => handleCheckout(true)} disabled={cart.length === 0} className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-[24px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 transition-all active:scale-95 disabled:opacity-50">Bayar & print</button>
               </div>
             </div>
           </div>
@@ -418,7 +418,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
         <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm animate-in slide-in-from-bottom-4 duration-500">
              <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Pending Receivables</h3>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Pending Piutang</h3>
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Unpaid customer balances</p>
                 </div>
                 <div className="text-right">
@@ -431,8 +431,8 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                   <thead className="bg-slate-50/50">
                     <tr>
                         <th className="px-10 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice ID</th>
-                        <th className="px-10 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</th>
-                        <th className="px-10 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Remaining Balance</th>
+                        <th className="px-10 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pelanggan</th>
+                        <th className="px-10 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Sisa Saldo</th>
                         <th className="px-10 py-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
                     </tr>
                   </thead>
@@ -446,7 +446,7 @@ const SalesManagement: React.FC<SalesManagementProps> = ({
                             <td className="px-10 py-6 font-bold text-sm text-slate-600">{sale.customer_name}</td>
                             <td className="px-10 py-6 text-right font-black text-sm text-rose-600 bg-rose-50/20">Rp {sale.sisa.toLocaleString()}</td>
                             <td className="px-10 py-6 text-center">
-                              <button onClick={() => { setSelectedInvoice(sale); setPaymentAmount(sale.sisa); }} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-100">Make Payment</button>
+                              <button onClick={() => { setSelectedInvoice(sale); setPaymentAmount(sale.sisa); }} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-100">Lakukan Pembayaran</button>
                             </td>
                         </tr>
                       ))

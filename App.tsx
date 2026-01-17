@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, ProductStatus, ProductionStatus, Category, Variant, Stock, StockLog, ProductionBatch, ProductionItem, Sale, SaleItem, ProductCost, BatchCost, PaymentLog, Warehouse, Customer, Material, MaterialStock, MaterialStockLog, BOM } from './types';
-import Header from './components/Header';
+import { Product, ProductStatus, ProductionStatus, Category, Variant, Stock, StockLog, ProductionBatch, ProductionItem, Sale, SaleItem, ProductCost, BatchCost, PaymentLog, Warehouse, Customer, Material, MaterialStock, MaterialStockLog, BOM, User } from './types';
+import Sidebar from './components/Sidebar';
+import MobileHeader from './components/MobileHeader';
+import BottomNav from './components/BottomNav';
 import DashboardStats from './components/DashboardStats';
 import ProductList from './components/ProductList';
 import ProductFormModal from './components/ProductFormModal';
@@ -11,12 +13,26 @@ import StockManagement from './components/StockManagement';
 import SalesManagement from './components/SalesManagement';
 import ReportsManagement from './components/ReportsManagement';
 import SettingsPage from './components/SettingsPage';
+import MaterialManagement from './components/MaterialManagement';
+import CategoryManagement from './components/CategoryManagement';
+import WarehouseManagement from './components/WarehouseManagement';
+import CustomerManagement from './components/CustomerManagement';
+import LoginPage from './components/LoginPage';
+import SignUpPage from './components/SignUpPage';
 import { spreadsheetService } from './services/spreadsheetService';
 
-type Page = 'products' | 'categories' | 'variants' | 'production' | 'stock' | 'sales' | 'reports' | 'settings';
+type Page = 'products' | 'variants' | 'production' | 'stock' | 'sales' | 'reports' | 'settings';
+type ProductTab = 'katalog' | 'bahan' | 'kategori' | 'gudang' | 'pelanggan';
 
 const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authView, setAuthView] = useState<'login' | 'signup'>('login');
+  
   const [activePage, setActivePage] = useState<Page>('products');
+  const [activeProductTab, setActiveProductTab] = useState<ProductTab>('katalog');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileProductMenuOpen, setIsMobileProductMenuOpen] = useState(false);
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -31,8 +47,8 @@ const App: React.FC = () => {
   const [batchCosts, setBatchCosts] = useState<BatchCost[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   
-  // Material States
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialStocks, setMaterialStocks] = useState<MaterialStock[]>([]);
   const [materialStockLogs, setMaterialStockLogs] = useState<MaterialStockLog[]>([]);
@@ -40,12 +56,19 @@ const App: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isUrlMissing, setIsUrlMissing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ text: string, type: 'success' | 'error' | null }>({ text: '', type: null });
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Persist session
+  useEffect(() => {
+    const savedUser = localStorage.getItem('SESSION_USER');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+  }, []);
 
   useEffect(() => {
     if (syncMessage.text) {
@@ -55,66 +78,92 @@ const App: React.FC = () => {
   }, [syncMessage]);
 
   const loadData = async () => {
-    const url = spreadsheetService.getApiUrl();
-    if (!url) {
-      setIsUrlMissing(true);
+    if (!currentUser) return;
+    const businessUrl = spreadsheetService.getBusinessUrl();
+    
+    // Validasi dasar, Spreadsheet B sudah hardcoded di service
+    if (!businessUrl) {
       setIsLoading(false);
       return;
     }
     
-    setIsUrlMissing(false);
     setIsLoading(true);
-    const data = await spreadsheetService.fetchData();
-    
-    setProducts(data.products || []);
-    setCategories(data.categories || []);
-    setVariants(data.variants || []);
-    setStocks(data.stocks || []);
-    setStockLogs(data.stock_logs || []);
-    setSales(data.sales || []);
-    setSalesItems(data.sales_items || []);
-    setPaymentLogs(data.payment_logs || []);
-    setProductionBatches(data.production_batches || []);
-    setProductionItems(data.production_items || []);
-    setProductCosts(data.product_costs || []);
-    setBatchCosts(data.batch_costs || []);
-    setWarehouses(data.warehouses || []);
-    setCustomers(data.customers || []);
-    
-    // New Material Data
-    setMaterials(data.materials || []);
-    setMaterialStocks(data.material_stocks || []);
-    setMaterialStockLogs(data.material_stock_logs || []);
-    setBomProducts(data.bom_products || []);
-    
-    setIsLoading(false);
+
+    try {
+      const [businessData, userData] = await Promise.all([
+        spreadsheetService.fetchData(),
+        spreadsheetService.fetchUsers()
+      ]);
+      
+      setProducts(businessData.products || []);
+      setCategories(businessData.categories || []);
+      setVariants(businessData.variants || []);
+      setStocks(businessData.stocks || []);
+      setStockLogs(businessData.stock_logs || []);
+      setSales(businessData.sales || []);
+      setSalesItems(businessData.sales_items || []);
+      setPaymentLogs(businessData.payment_logs || []);
+      setProductionBatches(businessData.production_batches || []);
+      setProductionItems(businessData.production_items || []);
+      setProductCosts(businessData.product_costs || []);
+      setBatchCosts(businessData.batch_costs || []);
+      setWarehouses(businessData.warehouses || []);
+      setCustomers(businessData.customers || []);
+      setMaterials(businessData.materials || []);
+      setMaterialStocks(businessData.material_stocks || []);
+      setMaterialStockLogs(businessData.material_stock_logs || []);
+      setBomProducts(businessData.bom_products || []);
+      
+      setUsers(userData || []);
+    } catch (e) {
+      console.error("Load failed", e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    loadData();
-  }, [activePage]);
+    if (currentUser) loadData();
+  }, [activePage, currentUser]);
 
-  // Sync Wrappers
-  const saveMaterials = async (updated: Material[], updatedStocks: MaterialStock[], newLogs: MaterialStockLog[]) => {
-    setMaterials(updated);
-    setMaterialStocks(updatedStocks);
-    setMaterialStockLogs([...newLogs, ...materialStockLogs]);
-    setIsSyncing(true);
-    await Promise.all([
-      spreadsheetService.syncMaterials(updated),
-      spreadsheetService.syncMaterialStocks(updatedStocks),
-      spreadsheetService.syncMaterialStockLogs([...newLogs, ...materialStockLogs])
-    ]);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Material stocks updated', type: 'success' });
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    localStorage.setItem('SESSION_USER', JSON.stringify(user));
   };
 
-  const saveBOM = async (updated: BOM[]) => {
-    setBomProducts(updated);
-    setIsSyncing(true);
-    await spreadsheetService.syncBOM(updated);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Product BOM synchronized', type: 'success' });
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('SESSION_USER');
+    setActivePage('products');
+    setAuthView('login');
+  };
+
+  const handlePageChange = (page: Page, subTab?: ProductTab) => {
+    if (page === 'products' && !subTab && window.innerWidth < 768) {
+        setIsMobileProductMenuOpen(true);
+        return;
+    }
+    setActivePage(page);
+    if (subTab) {
+      setActiveProductTab(subTab);
+    }
+  };
+
+  const isAllowed = (page: Page, tab?: ProductTab) => {
+    if (!currentUser) return false;
+    const role = currentUser.role;
+    if (role === 'SUPER_ADMIN') return true;
+    
+    if (role === 'KASIR') {
+        return page === 'sales' || (page === 'products' && tab === 'pelanggan');
+    }
+    if (role === 'ADMIN') {
+        return page === 'products' || page === 'variants' || page === 'production' || page === 'stock';
+    }
+    if (role === 'STAFF') {
+        return page === 'stock' || (page === 'products' && tab === 'bahan');
+    }
+    return false;
   };
 
   const saveProducts = async (updated: Product[]) => {
@@ -122,195 +171,7 @@ const App: React.FC = () => {
     setIsSyncing(true);
     await spreadsheetService.syncProducts(updated);
     setIsSyncing(false);
-    setSyncMessage({ text: 'Product catalog synchronized', type: 'success' });
-  };
-
-  const saveCategories = async (updated: Category[]) => {
-    setCategories(updated);
-    setIsSyncing(true);
-    await spreadsheetService.syncCategories(updated);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Category database synchronized', type: 'success' });
-  };
-
-  const saveProductCosts = async (updated: ProductCost[]) => {
-    setProductCosts(updated);
-    setIsSyncing(true);
-    await spreadsheetService.syncProductCosts(updated);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Product costs synchronized', type: 'success' });
-  };
-
-  const saveVariants = async (updatedVariants: Variant[], updatedStocks: Stock[]) => {
-    setVariants(updatedVariants);
-    setStocks(updatedStocks);
-    setIsSyncing(true);
-    await Promise.all([
-      spreadsheetService.syncVariants(updatedVariants),
-      spreadsheetService.syncStocks(updatedStocks)
-    ]);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'SKU variants updated', type: 'success' });
-  };
-
-  const saveProductionData = async (batches: ProductionBatch[], items: ProductionItem[], costs: BatchCost[], updatedStocks?: Stock[]) => {
-    setProductionBatches(batches);
-    setProductionItems(items);
-    setBatchCosts(costs);
-    
-    const logs: StockLog[] = [];
-    const matLogs: MaterialStockLog[] = [];
-    let updatedMaterialStocks = [...materialStocks];
-
-    if (updatedStocks) {
-      const activeBatch = batches.find(b => b.status === ProductionStatus.FIN);
-      if (activeBatch) {
-        // Record output to product stocks
-        items.filter(i => i.qty_hasil > 0 && i.batch_id === activeBatch.batch_id).forEach(item => {
-          logs.push({
-            tanggal: new Date().toISOString(),
-            sku: item.sku,
-            from_wh: '-',
-            to_wh: activeBatch.dest_warehouse_id || warehouses[0]?.warehouse_id || 'WH-01',
-            qty: item.qty_hasil,
-            jenis: 'PRODUKSI',
-            referensi: activeBatch.batch_id,
-            user: 'Admin'
-          });
-
-          // AUTOMATIC MATERIAL DEDUCTION (BOM)
-          const skuBoms = bomProducts.filter(b => b.sku === item.sku);
-          skuBoms.forEach(bom => {
-            const usage = bom.qty_per_pcs * item.qty_hasil;
-            matLogs.push({
-              tanggal: new Date().toISOString(),
-              material_id: bom.material_id,
-              qty: -usage,
-              jenis: 'PRODUKSI',
-              referensi: activeBatch.batch_id,
-              catatan: `Produksi ${item.sku}`
-            });
-            
-            updatedMaterialStocks = updatedMaterialStocks.map(ms => 
-              ms.material_id === bom.material_id ? { ...ms, stok: ms.stok - usage } : ms
-            );
-          });
-        });
-        setStocks(updatedStocks);
-        setStockLogs(prev => [...logs, ...prev]);
-        setMaterialStocks(updatedMaterialStocks);
-        setMaterialStockLogs(prev => [...matLogs, ...prev]);
-      }
-    }
-    
-    setIsSyncing(true);
-    const promises: Promise<any>[] = [
-      spreadsheetService.syncProductionBatches(batches),
-      spreadsheetService.syncProductionItems(items),
-      spreadsheetService.syncBatchCosts(costs)
-    ];
-    if (updatedStocks) {
-      promises.push(spreadsheetService.syncStocks(updatedStocks));
-      promises.push(spreadsheetService.syncStockLogs([...logs, ...stockLogs]));
-      promises.push(spreadsheetService.syncMaterialStocks(updatedMaterialStocks));
-      promises.push(spreadsheetService.syncMaterialStockLogs([...matLogs, ...materialStockLogs]));
-    }
-    
-    await Promise.all(promises);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Production state updated', type: 'success' });
-  };
-
-  const saveStockAdjustment = async (updatedStocks: Stock[], newLogs: StockLog[]) => {
-    const allLogs = [...newLogs, ...stockLogs];
-    setStocks(updatedStocks);
-    setStockLogs(allLogs);
-    setIsSyncing(true);
-    await Promise.all([
-      spreadsheetService.syncStocks(updatedStocks),
-      spreadsheetService.syncStockLogs(allLogs)
-    ]);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Stock level adjustment successful', type: 'success' });
-  };
-
-  const handleSaveSale = async (sale: Sale, items: SaleItem[], updatedStocks: Stock[]) => {
-    const saleLogs: StockLog[] = items.map(item => ({
-      tanggal: sale.tanggal,
-      sku: item.sku,
-      from_wh: sale.warehouse_id,
-      to_wh: '-',
-      qty: -item.qty,
-      jenis: 'PENJUALAN',
-      referensi: sale.invoice,
-      user: sale.user
-    }));
-
-    const newPaymentLog: PaymentLog = {
-      id: `PAY-${Date.now()}`,
-      invoice: sale.invoice,
-      tanggal: sale.tanggal,
-      jumlah: sale.dp,
-      metode: sale.metode,
-      user: sale.user
-    };
-
-    const allSales = [sale, ...sales];
-    const allItems = [...items, ...salesItems];
-    const allLogs = [...saleLogs, ...stockLogs];
-    const allPaymentLogs = [newPaymentLog, ...paymentLogs];
-
-    setSales(allSales);
-    setSalesItems(allItems);
-    setStocks(updatedStocks);
-    setStockLogs(allLogs);
-    setPaymentLogs(allPaymentLogs);
-
-    setIsSyncing(true);
-    await Promise.all([
-      spreadsheetService.syncSales(allSales),
-      spreadsheetService.syncSalesItems(allItems),
-      spreadsheetService.syncStocks(updatedStocks),
-      spreadsheetService.syncStockLogs(allLogs),
-      spreadsheetService.syncPaymentLogs(allPaymentLogs)
-    ]);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Transaction recorded', type: 'success' });
-  };
-
-  const handleUpdatePayment = async (invoice: string, amount: number, method: string) => {
-    const now = new Date().toISOString();
-    const newLog: PaymentLog = {
-      id: `PAY-${Date.now()}`,
-      invoice,
-      tanggal: now,
-      jumlah: amount,
-      metode: method,
-      user: 'Admin'
-    };
-    const updatedPaymentLogs = [newLog, ...paymentLogs];
-    const updatedSales = sales.map(s => {
-      if (s.invoice === invoice) {
-        const newTotalPaid = Number(s.dp) + amount;
-        const newRemaining = Math.max(0, Number(s.total) - newTotalPaid);
-        return {
-          ...s,
-          dp: newTotalPaid,
-          sisa: newRemaining,
-          status: newRemaining <= 0 ? 'PAID' : 'DP' as 'PAID' | 'DP'
-        };
-      }
-      return s;
-    });
-    setSales(updatedSales);
-    setPaymentLogs(updatedPaymentLogs);
-    setIsSyncing(true);
-    await Promise.all([
-      spreadsheetService.syncSales(updatedSales),
-      spreadsheetService.syncPaymentLogs(updatedPaymentLogs)
-    ]);
-    setIsSyncing(false);
-    setSyncMessage({ text: 'Debt settlement recorded', type: 'success' });
+    setSyncMessage({ text: 'Katalog Berhasil Disinkronkan', type: 'success' });
   };
 
   const handleAddProduct = (newProductData: Omit<Product, 'product_id' | 'status'>) => {
@@ -343,174 +204,239 @@ const App: React.FC = () => {
   const filteredProducts = useMemo(() => {
     const query = searchQuery.toLowerCase();
     return products.filter(p => 
-      (p.nama_produk?.toLowerCase() || '').includes(query) ||
-      (p.kategori?.toLowerCase() || '').includes(query) ||
-      (p.product_id?.toLowerCase() || '').includes(query)
+      (p.nama_produk || '').toLowerCase().includes(query) ||
+      (p.kategori || '').toLowerCase().includes(query) ||
+      (p.product_id || '').toLowerCase().includes(query)
     );
   }, [products, searchQuery]);
 
+  // Auth Gate
+  if (!currentUser) {
+    return authView === 'login' ? (
+      <LoginPage onLogin={handleLogin} onSwitchToSignUp={() => setAuthView('signup')} />
+    ) : (
+      <SignUpPage onBackToLogin={() => setAuthView('login')} />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] selection:bg-blue-100 selection:text-blue-900">
-      <Header activePage={activePage} onPageChange={setActivePage} isSyncing={isSyncing} />
-      
-      {syncMessage.text && (
-        <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-8 py-4 rounded-[28px] shadow-2xl border flex items-center gap-3 animate-in fade-in slide-in-from-bottom-6 duration-500 ${
-          syncMessage.type === 'success' ? 'bg-slate-900 text-white border-white/10' : 'bg-rose-600 text-white border-rose-50'
-        }`}>
-          <div className={`w-2.5 h-2.5 rounded-full ${syncMessage.type === 'success' ? 'bg-emerald-400' : 'bg-rose-400'} animate-pulse`}></div>
-          <span className="text-[11px] font-black uppercase tracking-widest">{syncMessage.text}</span>
-        </div>
-      )}
+    <div className="flex h-screen bg-[#FBFBFD] text-[#1D1D1F] overflow-hidden">
+      <div className={`hidden md:block transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] h-full ${isSidebarOpen ? 'w-[280px]' : 'w-0 overflow-hidden'}`}>
+        <Sidebar 
+          activePage={activePage} 
+          activeProductTab={activeProductTab}
+          onPageChange={handlePageChange} 
+          userRole={currentUser.role}
+        />
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pb-20">
-        {isUrlMissing && activePage !== 'settings' && (
-          <div className="bg-rose-50 border-2 border-rose-100 rounded-[32px] p-8 mb-10 flex flex-col sm:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
-            <div className="flex items-center gap-5 text-center sm:text-left">
-              <div className="bg-rose-500 p-4 rounded-3xl text-white shadow-xl shadow-rose-200">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-rose-900 tracking-tight">System Disconnected</h3>
-                <p className="text-sm text-rose-600 font-medium">Please configure your Spreadsheet Backend URL in Settings to begin.</p>
-              </div>
-            </div>
-            <button onClick={() => setActivePage('settings')} className="px-8 py-4 bg-rose-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95">Go to Settings</button>
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        <MobileHeader userName={currentUser.nama} onLogout={handleLogout} />
+
+        <header className="hidden md:flex h-20 items-center justify-between px-10 glass-header sticky top-0 z-40 border-b border-[#F2F2F7]">
+          <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2.5 bg-[#F5F5F7] rounded-xl hover:bg-[#E8E8ED] transition-all text-[#1D1D1F]"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+            <h2 className="text-xl font-extrabold tracking-tight">
+              {activePage === 'products' ? `Produk > ${activeProductTab.charAt(0).toUpperCase() + activeProductTab.slice(1)}` : 
+               activePage.charAt(0).toUpperCase() + activePage.slice(1)}
+            </h2>
           </div>
-        )}
+          <div className="flex items-center gap-6">
+             <div className="flex items-center gap-4">
+               <div className="text-right border-r border-slate-100 pr-4">
+                  <p className="text-sm font-black text-[#1D1D1F]">{currentUser.nama}</p>
+                  <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">{currentUser.role.replace('_', ' ')}</p>
+               </div>
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-full bg-[#F5F5F7] border border-[#F2F2F7] overflow-hidden">
+                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.nama}`} alt="Avatar" />
+                 </div>
+                 <button 
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[11px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all active:scale-95"
+                 >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Log Out
+                 </button>
+               </div>
+             </div>
+          </div>
+        </header>
 
-        {activePage === 'products' && (
-          <div className="animate-in fade-in duration-700">
-            <DashboardStats products={products} />
-            <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden min-h-[500px]">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-40">
-                    <div className="w-16 h-16 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mb-6"></div>
-                    <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Enterprise Data...</p>
-                </div>
-              ) : (
+        <main className="flex-1 overflow-y-auto px-6 md:px-10 pb-32 md:pb-20 no-scrollbar">
+          {activePage === 'products' && (
+            <div className="animate-in fade-in duration-700 mt-10">
+              <div className="mb-10">
+                <DashboardStats products={products} />
+              </div>
+
+              <div className="mb-8 p-1.5 bg-[#F5F5F7] rounded-2xl flex w-full overflow-x-auto no-scrollbar gap-1 border border-[#F2F2F7] touch-pan-x">
+                {[
+                  { id: 'katalog', label: 'Katalog' },
+                  { id: 'bahan', label: 'Bahan' },
+                  { id: 'kategori', label: 'Kategori' },
+                  { id: 'gudang', label: 'Gudang' },
+                  { id: 'pelanggan', label: 'Pelanggan' },
+                ].filter(t => isAllowed('products', t.id as ProductTab)).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveProductTab(tab.id as ProductTab)}
+                    className={`px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${
+                      activeProductTab === tab.id ? 'bg-white text-[#0071E3] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeProductTab === 'katalog' && isAllowed('products', 'katalog') && (
                 <>
-                  <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-slate-50/30">
-                    <div className="relative flex-1 group">
-                      <span className="absolute inset-y-0 left-0 pl-5 flex items-center text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                      </span>
-                      <input
-                        type="text"
-                        placeholder="Search model, category, or internal ID..."
-                        className="block w-full pl-14 pr-5 py-4 border border-slate-200 rounded-2xl bg-white text-sm font-medium focus:ring-4 focus:ring-blue-50 transition-all"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black text-[#1D1D1F] tracking-tight">Daftar Produk</h3>
+                      <p className="text-sm text-slate-500 mt-1 font-medium">Kelola database produk pusat Anda</p>
                     </div>
-                    <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="inline-flex items-center justify-center px-10 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-95">Add Master Product</button>
+                    {(currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') && (
+                      <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="px-8 py-3 bg-[#0071E3] text-white rounded-2xl text-[12px] font-bold uppercase tracking-wider shadow-xl shadow-blue-500/10 hover:bg-[#0077ED] transition-all transform active:scale-95">
+                        Tambah Produk
+                      </button>
+                    )}
                   </div>
-                  <ProductList products={filteredProducts} onEdit={(p) => { setEditingProduct(p); setIsModalOpen(true); }} onToggleStatus={toggleProductStatus} />
+
+                  <div className="premium-card overflow-hidden">
+                    {isLoading ? (
+                      <div className="py-20 flex flex-col items-center">
+                        <div className="w-10 h-10 border-2 border-[#0071E3] border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : (
+                      <ProductList products={filteredProducts} onEdit={(p) => { setEditingProduct(p); setIsModalOpen(true); }} onToggleStatus={toggleProductStatus} />
+                    )}
+                  </div>
                 </>
               )}
-            </div>
-          </div>
-        )}
 
-        {activePage === 'variants' && (
-          <VariantManagement 
-            products={products} 
-            categories={categories} 
-            variants={variants} 
-            stocks={stocks} 
-            warehouses={warehouses}
-            onSave={saveVariants} 
-            isLoading={isLoading} 
-          />
-        )}
-        {activePage === 'production' && (
-          <ProductionManagement 
-            batches={productionBatches} 
-            items={productionItems} 
-            variants={variants} 
-            stocks={stocks} 
-            products={products} 
-            batchCosts={batchCosts}
-            warehouses={warehouses}
-            materials={materials}
-            materialStocks={materialStocks}
-            bomProducts={bomProducts}
-            isLoading={isLoading} 
-            onSaveBatch={saveProductionData} 
-            onSaveBOM={saveBOM}
-          />
-        )}
-        {activePage === 'stock' && (
-          <StockManagement 
-            variants={variants} 
-            stocks={stocks} 
-            products={products} 
-            stockLogs={stockLogs} 
-            warehouses={warehouses}
-            isLoading={isLoading} 
-            onSaveAdjustment={saveStockAdjustment} 
-          />
-        )}
-        {activePage === 'sales' && (
-          <SalesManagement 
-            variants={variants} 
-            stocks={stocks} 
-            products={products} 
-            sales={sales}
-            paymentLogs={paymentLogs}
-            customers={customers}
-            warehouses={warehouses}
-            onSaveSale={handleSaveSale} 
-            onUpdatePayment={handleUpdatePayment}
-            isLoading={isLoading} 
-          />
-        )}
-        {activePage === 'reports' && (
-          <ReportsManagement 
-            sales={sales}
-            salesItems={salesItems}
-            variants={variants}
-            products={products}
-            stocks={stocks}
-            paymentLogs={paymentLogs}
-            isLoading={isLoading}
-          />
-        )}
-        {activePage === 'settings' && (
-          <SettingsPage 
-            warehouses={warehouses}
-            customers={customers}
-            categories={categories}
-            materials={materials}
-            materialStocks={materialStocks}
-            materialLogs={materialStockLogs}
-            stocks={stocks}
-            isLoading={isLoading}
-            onRefreshData={loadData}
-            onSaveMaterials={saveMaterials}
-            onSaveWarehouses={async (updated) => {
-              setWarehouses(updated);
-              setIsSyncing(true);
-              await spreadsheetService.syncWarehouses(updated);
-              setIsSyncing(false);
-              setSyncMessage({ text: 'Warehouse configurations updated', type: 'success' });
-            }}
-            onSaveCustomers={async (updated) => {
-              setCustomers(updated);
-              setIsSyncing(true);
-              await spreadsheetService.syncCustomers(updated);
-              setIsSyncing(false);
-              setSyncMessage({ text: 'Customer database synchronized', type: 'success' });
-            }}
-            onSaveCategories={async (updated) => {
-              setCategories(updated);
-              setIsSyncing(true);
-              await spreadsheetService.syncCategories(updated);
-              setIsSyncing(false);
-              setSyncMessage({ text: 'Category database synchronized', type: 'success' });
-            }}
-          />
-        )}
-      </main>
+              {activeProductTab === 'bahan' && isAllowed('products', 'bahan') && (
+                <MaterialManagement 
+                  materials={materials} 
+                  materialStocks={materialStocks} 
+                  materialLogs={materialStockLogs} 
+                  onSave={async (m, ms, ml) => { 
+                    setMaterials(m); setMaterialStocks(ms); setMaterialStockLogs(ml);
+                    setIsSyncing(true);
+                    await spreadsheetService.syncMaterials(m);
+                    await spreadsheetService.syncMaterialStocks(ms);
+                    await spreadsheetService.syncMaterialStockLogs(ml);
+                    setIsSyncing(false);
+                  }} 
+                  isLoading={isLoading} 
+                />
+              )}
+
+              {activeProductTab === 'kategori' && isAllowed('products', 'kategori') && (
+                <CategoryManagement 
+                  categories={categories} 
+                  onSave={async (c) => { 
+                    setCategories(c);
+                    setIsSyncing(true);
+                    await spreadsheetService.syncCategories(c);
+                    setIsSyncing(false);
+                  }} 
+                  isLoading={isLoading} 
+                />
+              )}
+
+              {activeProductTab === 'gudang' && isAllowed('products', 'gudang') && (
+                <WarehouseManagement 
+                  warehouses={warehouses} 
+                  stocks={stocks} 
+                  onSave={async (w) => { 
+                    setWarehouses(w);
+                    setIsSyncing(true);
+                    await spreadsheetService.syncWarehouses(w);
+                    setIsSyncing(false);
+                  }} 
+                  isLoading={isLoading} 
+                />
+              )}
+
+              {activeProductTab === 'pelanggan' && isAllowed('products', 'pelanggan') && (
+                <CustomerManagement 
+                  customers={customers} 
+                  onSave={async (c) => { 
+                    setCustomers(c);
+                    setIsSyncing(true);
+                    await spreadsheetService.syncCustomers(c);
+                    setIsSyncing(false);
+                  }} 
+                  isLoading={isLoading} 
+                />
+              )}
+            </div>
+          )}
+
+          {activePage === 'variants' && isAllowed('variants') && <div className="mt-10"><VariantManagement products={products} categories={categories} variants={variants} stocks={stocks} warehouses={warehouses} onSave={async (v, s) => { setVariants(v); setStocks(s); setIsSyncing(true); await spreadsheetService.syncVariants(v); await spreadsheetService.syncStocks(s); setIsSyncing(false); }} isLoading={isLoading} /></div>}
+          {activePage === 'production' && isAllowed('production') && <div className="mt-10"><ProductionManagement batches={productionBatches} items={productionItems} variants={variants} stocks={stocks} products={products} batchCosts={batchCosts} warehouses={warehouses} materials={materials} materialStocks={materialStocks} bomProducts={bomProducts} isLoading={isLoading} onSaveBatch={async (b, i, c, s) => { setProductionBatches(b); setIsSyncing(true); await spreadsheetService.syncProductionBatches(b); await spreadsheetService.syncProductionItems(i); await spreadsheetService.syncBatchCosts(c); if(s) await spreadsheetService.syncStocks(s); setIsSyncing(false); }} onSaveBOM={async (bom) => { setBomProducts(bom); setIsSyncing(true); await spreadsheetService.syncBOM(bom); setIsSyncing(false); }} /></div>}
+          {activePage === 'stock' && isAllowed('stock') && <div className="mt-10"><StockManagement variants={variants} stocks={stocks} products={products} stockLogs={stockLogs} warehouses={warehouses} isLoading={isLoading} onSaveAdjustment={async (s, l) => { setStocks(s); setIsSyncing(true); await spreadsheetService.syncStocks(s); await spreadsheetService.syncStockLogs([...l, ...stockLogs]); setIsSyncing(false); }} /></div>}
+          {activePage === 'sales' && isAllowed('sales') && <div className="mt-10"><SalesManagement variants={variants} stocks={stocks} products={products} sales={sales} paymentLogs={paymentLogs} customers={customers} warehouses={warehouses} onSaveSale={async (sl, i, s) => { setSales([sl, ...sales]); setSalesItems([...i, ...salesItems]); setStocks(s); setIsSyncing(true); await spreadsheetService.syncSales([sl, ...sales]); await spreadsheetService.syncSalesItems([...i, ...salesItems]); await spreadsheetService.syncStocks(s); setIsSyncing(false); }} onUpdatePayment={async () => {}} isLoading={isLoading} /></div>}
+          {activePage === 'reports' && isAllowed('reports') && <div className="mt-10"><ReportsManagement sales={sales} salesItems={salesItems} variants={variants} products={products} stocks={stocks} paymentLogs={paymentLogs} isLoading={isLoading} /></div>}
+          {activePage === 'settings' && isAllowed('settings') && <div className="mt-10"><SettingsPage isLoading={isLoading} onRefreshData={loadData} users={users} onSyncUsers={async (u) => { setUsers(u); await spreadsheetService.syncUsers(u); }} isSuperAdmin={currentUser.role === 'SUPER_ADMIN'} /></div>}
+        </main>
+
+        <BottomNav activePage={activePage} onPageChange={handlePageChange} userRole={currentUser.role} />
+      </div>
+
+      {isMobileProductMenuOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsMobileProductMenuOpen(false)}></div>
+            <div className="relative w-full max-w-lg bg-white rounded-t-[40px] shadow-2xl p-8 animate-in slide-in-from-bottom duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]">
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8"></div>
+                <h3 className="text-lg font-black text-[#1D1D1F] mb-6 px-2">Pilih Manajemen Produk</h3>
+                <div className="grid grid-cols-1 gap-3">
+                    {[
+                        { id: 'katalog', label: 'Katalog Produk', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+                        { id: 'bahan', label: 'Master Bahan Baku', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
+                        { id: 'kategori', label: 'Kategori & Atribut', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+                        { id: 'gudang', label: 'Manajemen Gudang', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+                        { id: 'pelanggan', label: 'Database Pelanggan', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+                    ].filter(tab => isAllowed('products', tab.id as ProductTab)).map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                handlePageChange('products', tab.id as ProductTab);
+                                setIsMobileProductMenuOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-4 px-6 py-5 rounded-2xl transition-all ${
+                                activeProductTab === tab.id && activePage === 'products'
+                                ? 'bg-[#0071E3] text-white' 
+                                : 'bg-[#F5F5F7] text-slate-600 hover:bg-[#E8E8ED]'
+                            }`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={tab.icon} />
+                            </svg>
+                            <span className="text-sm font-bold tracking-tight">{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
+                <button 
+                    onClick={() => setIsMobileProductMenuOpen(false)}
+                    className="w-full mt-6 py-4 text-sm font-black text-slate-400 uppercase tracking-widest"
+                >
+                    Tutup
+                </button>
+            </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <ProductFormModal isOpen={isModalOpen} categories={categories} onClose={() => { setIsModalOpen(false); setEditingProduct(null); }} onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct} initialData={editingProduct} existingNames={products.map(p => (p.nama_produk || '').toLowerCase())} />
